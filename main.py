@@ -1,22 +1,28 @@
 import telebot
-from telebot.types import ReplyKeyboardMarkup, InputMediaPhoto
+from telebot.types import ReplyKeyboardMarkup
+import os
 
-TOKEN = #ваш Token
+TOKEN = "8292056523:AAGY_0lfU8TvwWQq9l-EP2UDiaI_l9kp3fQ"
 bot = telebot.TeleBot(TOKEN)
 
-ADMIN_ID = 124124  # Ваш ID в Telegram
+ADMIN_ID = 6727914616  
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Проверка пути к фото
+photo_path = os.path.join(BASE_DIR, "img", "airpods-1.jpg")
+print(f"Пытаюсь открыть файл по пути: {photo_path}")
+print(f"Файл существует: {os.path.exists(photo_path)}")
 
+# Словарь с товарами
 products = {
-    "Наушники": {
+    "Наушники Hoko": {
         "price": 500,
-        "description": "🎧 Беспроводные наушники с чистым звуком",
-        "photo": "https://cdn1.ozone.ru/s3/multimedia-3/6049421991.jpg"
+        "description": "🎧 Беспроводные наушники с чистым звуком HOKO, Нет в наличии!",
     },
-    "PowerBank": {
-        "price": 800,
-        "description": "🔋 Мощный powerbank 10000 mAh",
-        "photo": "https://cache3.youla.io/files/images/780_780/58/3a/583a9273080cbddf36f63482.jpg"
+    "Наушники AirPods 3": {
+        "price": 700,
+        "description": "AirPods 3 реплика с хорошим, чистым звуком",
+        "photo": photo_path  # Используем уже проверенный путь
     }
 }
 
@@ -27,34 +33,73 @@ def main_menu():
     markup.row('⭐ Оставить отзыв')  
     return markup
 
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.send_message(message.chat.id, "Добро пожаловать в LitCombany!", reply_markup=main_menu())
 
+@bot.message_handler(func=lambda m: m.text == '🛍️ Товары')
+def show_products(message):
+    for name, data in products.items():
+        try:
+            if 'photo' in data and data['photo'] and os.path.exists(data['photo']):
+                with open(data['photo'], 'rb') as photo_file:
+                    bot.send_photo(
+                        chat_id=message.chat.id,
+                        photo=photo_file,
+                        caption=f"🎧 {name}\n💰 Цена: {data['price']}₽\n📝 {data['description']}",
+                        reply_markup=products_menu()
+                    )
+            else:
+                bot.send_message(
+                    chat_id=message.chat.id,
+                    text=f"🎧 {name}\n💰 Цена: {data['price']}₽\n📝 {data['description']}",
+                    reply_markup=products_menu()
+                )
+        except Exception as e:
+            print(f"Ошибка при отправке товара {name}: {str(e)}")
+            bot.send_message(
+                chat_id=message.chat.id,
+                text=f"🎧 {name}\n💰 Цена: {data['price']}₽\n📝 {data['description']}\n\n⚠️ Фото временно недоступно",
+                reply_markup=products_menu()
+            )
+
+def products_menu():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row('Наушники Hoko', 'Наушники AirPods 3')
+    markup.row('🔙 Назад')
+    return markup
+# Новый обработчик для отзывов
 @bot.message_handler(func=lambda m: m.text == '⭐ Оставить отзыв')
 def ask_review(message):
     msg = bot.send_message(message.chat.id, "Напишите ваш отзыв о нашем магазине:")
     bot.register_next_step_handler(msg, save_review)
 
 def save_review(message):
+    # Сохраняем в файл
     with open('reviews.txt', 'a', encoding='utf-8') as f:
         f.write(f"Отзыв от @{message.from_user.username}:\n{message.text}\n\n")
     
+
     bot.send_message(
         ADMIN_ID,
         f"📝 Новый отзыв!\nОт: @{message.from_user.username}\nТекст:\n{message.text}"
     )
     
+
     bot.send_message(
         message.chat.id,
         "Спасибо за ваш отзыв! 💙",
         reply_markup=main_menu()
     )
 
+# Меню товаров
 def products_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row('Наушники', 'PowerBank')
+    markup.row('Наушники Hoko', 'Наушники AirPods 3')
     markup.row('🔙 Назад')
     return markup
 
-
+# Обработчик /start
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(
@@ -63,6 +108,7 @@ def start(message):
         reply_markup=main_menu()
     )
 
+# Обработчик кнопки "Товары" (с фото)
 @bot.message_handler(func=lambda m: m.text == '🛍️ Товары')
 def show_products(message):
     try:
@@ -76,13 +122,14 @@ def show_products(message):
         bot.send_message(message.chat.id, "Выберите товар:", reply_markup=products_menu())
     except Exception as e:
         print(f"Ошибка при отправке фото: {e}")
+
         products_text = "\n\n".join(
             [f"{name} - {data['price']}₽\n{data['description']}" 
              for name, data in products.items()]
         )
         bot.send_message(message.chat.id, products_text, reply_markup=products_menu())
 
-
+# Обработчик кнопки "Соцсети"
 @bot.message_handler(func=lambda m: m.text == '📱 Соцсети')
 def show_socials(message):
     bot.send_message(
@@ -103,7 +150,7 @@ def show_support(message):
         reply_markup=main_menu()
     )
 
-orders = {}
+orders = {}  
 
 @bot.message_handler(func=lambda m: m.text in products.keys())
 def select_product(message):
@@ -131,6 +178,8 @@ def confirm_order(message):
     order = orders[message.chat.id]
     user = message.from_user
     
+
+
     admin_msg = (
         f"🚀 *Новый заказ!*\n\n"
         f"▪ Товар: {order['product']}\n"
@@ -179,8 +228,9 @@ def back_to_main(message):
 faq = {
     "Доставка": "🚚 Отправляем в день заказа! Сроки: 3-5 дней по россии.",
     "Оплата": "💳 перевод на карту.",
-    "Гарантия": "🔧 Возврат в течение 3 дней если товар не понравился."
+    "Гарантия": "🔧 Возврат в течение 1 дня если товар не понравился."
 }
+
 
 @bot.message_handler(commands=['faq'])
 def show_faq(message):
